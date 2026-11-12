@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#059669" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <title>Daily Expense Tracker</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen py-8 px-4">
+  <main class="max-w-lg mx-auto space-y-6">
+    <!-- Header & Month Selector -->
+    <header class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Daily Expense Tracker</p>
+          <h1 class="text-2xl font-bold text-slate-900 mt-1">Daily Expense Tracker</h1>
+        </div>
+        <div>
+          <label for="month-picker" class="block text-[11px] font-medium text-slate-500 mb-1">Month</label>
+          <input
+            id="month-picker"
+            type="month"
+            class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          />
+        </div>
+      </div>
+
+      <!-- Monthly Income Input -->
+      <div class="pt-3 border-t border-slate-100">
+        <label for="monthly-income" class="block text-xs font-medium text-slate-600 mb-1">
+          Monthly Income / Budget for <span id="income-month-label" class="font-semibold text-slate-800"></span> (₹)
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            id="monthly-income"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="e.g., 50000"
+            class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          />
+          <span id="income-saved-badge" class="hidden text-xs font-medium text-emerald-600 shrink-0">Saved</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Month-End Summary Card -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-700">Month-End Summary</h2>
+          <span id="savings-rate" class="text-xs font-medium text-slate-500">Set income to track savings</span>
+        </div>
+        <button
+          id="export-csv-btn"
+          type="button"
+          class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Download CSV
+        </button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 text-center">
+        <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+          <p class="text-[11px] font-medium text-slate-500">Income</p>
+          <p id="summary-income" class="text-sm sm:text-base font-bold text-slate-900 mt-0.5">₹0.00</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+          <p class="text-[11px] font-medium text-slate-500">Spent</p>
+          <p id="total-amount" class="text-sm sm:text-base font-bold text-slate-900 mt-0.5">₹0.00</p>
+        </div>
+        <div id="saved-box" class="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
+          <p id="saved-label" class="text-[11px] font-medium text-emerald-700">Saved</p>
+          <p id="summary-saved" class="text-sm sm:text-base font-bold text-emerald-700 mt-0.5">₹0.00</p>
+        </div>
+      </div>
+
+      <!-- Spending Progress Bar -->
+      <div>
+        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div id="budget-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <p id="budget-note" class="text-xs text-slate-500 mt-1.5"></p>
+      </div>
+
+      <!-- Category Breakdown & Chart -->
+      <div id="category-breakdown" class="hidden pt-3 border-t border-slate-100 space-y-4">
+        <div>
+          <p class="text-xs font-medium text-slate-500 mb-2">Spent by Category</p>
+          <div id="category-pills" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div class="relative h-52">
+          <canvas id="spending-chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Expense Form -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <h2 id="form-heading" class="text-sm font-semibold text-slate-700 mb-4">Add Day-to-Day Expense</h2>
+      <form id="expense-form" class="space-y-4" novalidate>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label for="expense-title" class="block text-xs font-medium text-slate-600 mb-1">What did you spend on?</label>
+            <input
+              id="expense-title"
+              type="text"
+              placeholder="e.g., Tea & snacks, Metro ticket"
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+          <div>
+            <label for="expense-date" class="block text-xs font-medium text-slate-600 mb-1">Date</label>
+            <input
+              id="expense-date"
+              type="date"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="expense-amount" class="block text-xs font-medium text-slate-600 mb-1">Amount (₹)</label>
+            <input
+              id="expense-amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="e.g., 50"
+              class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+          <div>
+            <label for="expense-category" class="block text-xs font-medium text-slate-600 mb-1">Category</label>
+            <select
+              id="expense-category"
+              class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="Food">Food</option>
+              <option value="Transport">Transport</option>
+              <option value="Groceries">Groceries</option>
+              <option value="Bills">Bills</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="custom-category-wrap" class="hidden">
+          <label for="custom-category" class="block text-xs font-medium text-slate-600 mb-1">Custom Category (optional)</label>
+          <input
+            id="custom-category"
+            type="text"
+            placeholder="e.g., Medical, Shopping (defaults to Other)"
+            class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          />
+        </div>
+
+        <p id="form-error" class="hidden text-xs font-medium text-rose-600"></p>
+
+        <div class="flex items-center gap-2">
+          <button
+            id="submit-btn"
+            type="submit"
+            class="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm py-2.5 px-4 transition-colors cursor-pointer"
+          >
+            Add Expense
+          </button>
+          <button
+            id="cancel-edit-btn"
+            type="button"
+            class="hidden rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm py-2.5 px-4 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Recurring Monthly Bills -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-700">Recurring Monthly Bills</h2>
+          <p class="text-xs text-slate-500">Save fixed bills once and log them in one click each month.</p>
+        </div>
+        <button
+          id="log-all-bills-btn"
+          type="button"
+          class="hidden text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+        >
+          Log All Remaining
+        </button>
+      </div>
+
+      <form id="bill-form" class="grid grid-cols-1 sm:grid-cols-12 gap-2" novalidate>
+        <input
+          id="bill-title"
+          type="text"
+          placeholder="Bill name (e.g., Rent, Wi-Fi)"
+          class="sm:col-span-5 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+        />
+        <input
+          id="bill-amount"
+          type="number"
+          step="0.01"
+          min="0.01"
+          placeholder="Amount (₹)"
+          class="sm:col-span-4 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+        />
+        <button
+          type="submit"
+          class="sm:col-span-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm py-2 px-3 transition-colors cursor-pointer"
+        >
+          Save Bill
+        </button>
+      </form>
+      <p id="bill-error" class="hidden text-xs font-medium text-rose-600"></p>
+
+      <ul id="bill-list" class="divide-y divide-slate-100"></ul>
+      <p id="bill-empty" class="text-xs text-slate-400 text-center py-2">
+        No recurring bills saved yet.
+      </p>
+    </section>
+
+    <!-- Expense List for Selected Month -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm font-semibold text-slate-700">Expenses This Month</h2>
+          <span id="item-count" class="text-xs font-medium text-slate-500">0 items</span>
+        </div>
+
+        <!-- Two-step Clear All controls -->
+        <div id="clear-controls" class="hidden flex items-center gap-2">
+          <button
+            id="clear-btn"
+            type="button"
+            class="text-xs font-medium text-slate-500 hover:text-rose-600 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+          >
+            Clear All
+          </button>
+          <div id="clear-confirm-group" class="hidden flex items-center gap-1.5">
+            <button
+              id="confirm-clear-btn"
+              type="button"
+              class="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+            >
+              Confirm Clear
+            </button>
+            <button
+              id="cancel-clear-btn"
+              type="button"
+              class="text-xs font-medium text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="search-wrap" class="hidden mb-3">
+        <input
+          id="search-input"
+          type="search"
+          placeholder="Search expenses by name or category..."
+          class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+        />
+      </div>
+
+      <div id="filter-bar" class="hidden flex flex-wrap gap-1.5 mb-4"></div>
+
+      <ul id="expense-list" class="divide-y divide-slate-100"></ul>
+
+      <p id="empty-state" class="text-sm text-slate-400 text-center py-6">
+        No expenses recorded for this month yet. Add one above to get started.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const EXPENSES_KEY = 'daily_expenses_v1';
+    const INCOMES_KEY = 'monthly_incomes_v1';
+    const BILLS_KEY = 'recurring_bills_v1';
+
+    function getTodayISO() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function getCurrentMonthISO() {
+      return getTodayISO().slice(0, 7);
+    }
+
+    // 1. Storage helpers
+    function loadExpenses() {
+      try {
+        const raw = localStorage.getItem(EXPENSES_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        const fallbackDate = getTodayISO();
+        return parsed.map((item) => ({
+          ...item,
+          date: item.date || fallbackDate
+        }));
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function saveExpenses(items) {
+      try {
+        localStorage.setItem(EXPENSES_KEY, JSON.stringify(items));
+      } catch (err) {
+        // Ignore storage errors in restricted environments
+      }
+    }
+
+    function loadIncomes() {
+      try {
+        const raw = localStorage.getItem(INCOMES_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      } catch (err) {
+        return {};
+      }
+    }
+
+    function saveIncomes(map) {
+      try {
+        localStorage.setItem(INCOMES_KEY, JSON.stringify(map));
+      } catch (err) {
+        // Ignore storage errors in restricted environments
+      }
+    }
+
+    function loadBills() {
+      try {
+        const raw = localStorage.getItem(BILLS_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function saveBills(items) {
+      try {
+        localStorage.setItem(BILLS_KEY, JSON.stringify(items));
+      } catch (err) {
+        // Ignore storage errors in restricted environments
+      }
+    }
+
+    // 2. State
+    let expenses = loadExpenses();
+    let monthlyIncomes = loadIncomes();
+    let recurringBills = loadBills();
+    let nextBillId = recurringBills.reduce((max, b) => Math.max(max, Number(b.id) || 0), 0) + 1;
+    let selectedMonth = getCurrentMonthISO();
+    let selectedCategory = 'All';
+    let editingId = null;
+    let searchQuery = '';
+    let spendingChart = null;
+    let nextId = expenses.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
+
+    // 3. DOM references
+    const monthPicker = document.getElementById('month-picker');
+    const incomeMonthLabel = document.getElementById('income-month-label');
+    const monthlyIncomeInput = document.getElementById('monthly-income');
+    const incomeSavedBadge = document.getElementById('income-saved-badge');
+
+    const summaryIncomeEl = document.getElementById('summary-income');
+    const totalAmountEl = document.getElementById('total-amount');
+    const savedBoxEl = document.getElementById('saved-box');
+    const savedLabelEl = document.getElementById('saved-label');
+    const summarySavedEl = document.getElementById('summary-saved');
+    const savingsRateEl = document.getElementById('savings-rate');
+    const budgetBarEl = document.getElementById('budget-bar');
+    const budgetNoteEl = document.getElementById('budget-note');
+    const categoryBreakdownEl = document.getElementById('category-breakdown');
+    const categoryPillsEl = document.getElementById('category-pills');
+    const exportCsvBtn = document.getElementById('export-csv-btn');
+    const searchWrapEl = document.getElementById('search-wrap');
+    const searchInputEl = document.getElementById('search-input');
+    const filterBarEl = document.getElementById('filter-bar');
+    const spendingChartCanvas = document.getElementById('spending-chart');
+    const formHeading = document.getElementById('form-heading');
+    const submitBtn = document.getElementById('submit-btn');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
+    const billForm = document.getElementById('bill-form');
+    const billTitleInput = document.getElementById('bill-title');
+    const billAmountInput = document.getElementById('bill-amount');
+    const billError = document.getElementById('bill-error');
+    const billListEl = document.getElementById('bill-list');
+    const billEmptyEl = document.getElementById('bill-empty');
+    const logAllBillsBtn = document.getElementById('log-all-bills-btn');
+
+    const form = document.getElementById('expense-form');
+    const titleInput = document.getElementById('expense-title');
+    const dateInput = document.getElementById('expense-date');
+    const amountInput = document.getElementById('expense-amount');
+    const categoryInput = document.getElementById('expense-category');
+    const customCategoryWrap = document.getElementById('custom-category-wrap');
+    const customCategoryInput = document.getElementById('custom-category');
+    const formError = document.getElementById('form-error');
+    const expenseList = document.getElementById('expense-list');
+    const emptyState = document.getElementById('empty-state');
+    const itemCountEl = document.getElementById('item-count');
+    const clearControls = document.getElementById('clear-controls');
+    const clearBtn = document.getElementById('clear-btn');
+    const clearConfirmGroup = document.getElementById('clear-confirm-group');
+    const confirmClearBtn = document.getElementById('confirm-clear-btn');
+    const cancelClearBtn = document.getElementById('cancel-clear-btn');
+
+    const categoryColors = {
+      Food: 'bg-amber-50 text-amber-700 border-amber-200',
+      Transport: 'bg-sky-50 text-sky-700 border-sky-200',
+      Groceries: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      Bills: 'bg-violet-50 text-violet-700 border-violet-200',
+      Other: 'bg-slate-100 text-slate-700 border-slate-200'
+    };
+
+    function formatRupees(value) {
+      const num = Number(value) || 0;
+      const sign = num < 0 ? '-' : '';
+      return sign + '₹' + Math.abs(num).toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function formatMonthLabel(monthISO) {
+      const parts = monthISO.split('-');
+      if (parts.length !== 2) return monthISO;
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+      return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    }
+
+    function formatShortDate(dateISO) {
+      const parts = dateISO.split('-');
+      if (parts.length !== 3) return dateISO;
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    }
+
+    function resetClearConfirm() {
+      clearBtn.classList.remove('hidden');
+      clearConfirmGroup.classList.add('hidden');
+    }
+
+    function syncDateInputToMonth() {
+      const today = getTodayISO();
+      if (today.startsWith(selectedMonth)) {
+        dateInput.value = today;
+      } else {
+        dateInput.value = `${selectedMonth}-01`;
+      }
+    }
+
+    // 4. Render: filters by selectedMonth and calculates month-end savings
+    function render() {
+      const monthLabel = formatMonthLabel(selectedMonth);
+      incomeMonthLabel.textContent = monthLabel;
+
+      const income = Number(monthlyIncomes[selectedMonth]) || 0;
+      if (document.activeElement !== monthlyIncomeInput) {
+        monthlyIncomeInput.value = income > 0 ? String(income) : '';
+      }
+
+      const monthExpenses = expenses
+        .filter((item) => (item.date || '').startsWith(selectedMonth))
+        .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+
+      const totalSpent = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      const moneySaved = income - totalSpent;
+
+      summaryIncomeEl.textContent = formatRupees(income);
+      totalAmountEl.textContent = formatRupees(totalSpent);
+      summarySavedEl.textContent = formatRupees(moneySaved);
+      itemCountEl.textContent = monthExpenses.length === 1 ? '1 item' : `${monthExpenses.length} items`;
+
+      // Update Saved / Overspent styling & progress bar
+      if (income <= 0) {
+        savedBoxEl.className = 'rounded-xl bg-slate-50 border border-slate-200 p-3';
+        savedLabelEl.className = 'text-[11px] font-medium text-slate-500';
+        savedLabelEl.textContent = 'Saved';
+        summarySavedEl.className = 'text-sm sm:text-base font-bold text-slate-700 mt-0.5';
+        savingsRateEl.textContent = 'Enter monthly income above';
+        budgetBarEl.style.width = '0%';
+        budgetBarEl.className = 'h-full bg-slate-300 transition-all duration-300';
+        budgetNoteEl.textContent = totalSpent > 0
+          ? `You've spent ${formatRupees(totalSpent)} in ${monthLabel}. Add your monthly income to see net savings.`
+          : `Add your income and daily expenses for ${monthLabel} to track month-end savings.`;
+      } else if (moneySaved >= 0) {
+        const spentPct = Math.min(100, Math.round((totalSpent / income) * 100));
+        const savedPct = Math.max(0, 100 - spentPct);
+        savedBoxEl.className = 'rounded-xl bg-emerald-50 border border-emerald-200 p-3';
+        savedLabelEl.className = 'text-[11px] font-medium text-emerald-700';
+        savedLabelEl.textContent = 'Saved';
+        summarySavedEl.className = 'text-sm sm:text-base font-bold text-emerald-700 mt-0.5';
+        savingsRateEl.textContent = `${savedPct}% saved`;
+        budgetBarEl.style.width = `${spentPct}%`;
+        budgetBarEl.className = spentPct >= 85
+          ? 'h-full bg-amber-500 transition-all duration-300'
+          : 'h-full bg-emerald-500 transition-all duration-300';
+        budgetNoteEl.textContent = `${spentPct}% of your ${monthLabel} income spent · ${formatRupees(moneySaved)} remaining.`;
+      } else {
+        savedBoxEl.className = 'rounded-xl bg-rose-50 border border-rose-200 p-3';
+        savedLabelEl.className = 'text-[11px] font-medium text-rose-700';
+        savedLabelEl.textContent = 'Overspent';
+        summarySavedEl.className = 'text-sm sm:text-base font-bold text-rose-700 mt-0.5';
+        savingsRateEl.textContent = 'Over budget';
+        budgetBarEl.style.width = '100%';
+        budgetBarEl.className = 'h-full bg-rose-500 transition-all duration-300';
+        budgetNoteEl.textContent = `Spent ${formatRupees(Math.abs(moneySaved))} more than your ${monthLabel} income.`;
+      }
+
+      // Category breakdown pills & Chart.js doughnut
+      if (monthExpenses.length === 0) {
+        categoryBreakdownEl.classList.add('hidden');
+        categoryPillsEl.innerHTML = '';
+        if (spendingChart) {
+          spendingChart.destroy();
+          spendingChart = null;
+        }
+      } else {
+        const byCategory = {};
+        monthExpenses.forEach((item) => {
+          byCategory[item.category] = (byCategory[item.category] || 0) + (Number(item.amount) || 0);
+        });
+        const sortedEntries = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+        categoryPillsEl.innerHTML = '';
+        sortedEntries.forEach(([cat, amt]) => {
+          const pill = document.createElement('span');
+          const badgeStyle = categoryColors[cat] || categoryColors.Other;
+          pill.className = `inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${badgeStyle}`;
+          pill.textContent = `${cat}: ${formatRupees(amt)}`;
+          categoryPillsEl.appendChild(pill);
+        });
+        categoryBreakdownEl.classList.remove('hidden');
+
+        if (typeof Chart !== 'undefined') {
+          const chartPalette = ['#10b981', '#f59e0b', '#0ea5e9', '#8b5cf6', '#64748b', '#ec4899', '#14b8a6'];
+          if (spendingChart) {
+            spendingChart.destroy();
+          }
+          spendingChart = new Chart(spendingChartCanvas, {
+            type: 'doughnut',
+            data: {
+              labels: sortedEntries.map(([cat]) => cat),
+              datasets: [{
+                data: sortedEntries.map(([, amt]) => amt),
+                backgroundColor: sortedEntries.map((_, i) => chartPalette[i % chartPalette.length]),
+                borderWidth: 2,
+                borderColor: '#ffffff'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '62%',
+              plugins: {
+                legend: {
+                  position: 'right',
+                  labels: { boxWidth: 12, font: { size: 11 } }
+                }
+              }
+            }
+          });
+        }
+      }
+
+      // Render recurring bills for the selected month
+      renderBills(monthExpenses);
+
+      // Enable or disable CSV export
+      exportCsvBtn.disabled = monthExpenses.length === 0;
+
+      // Build category filter pills
+      const availableCategories = ['All', ...new Set(monthExpenses.map((item) => item.category))];
+      if (!availableCategories.includes(selectedCategory)) {
+        selectedCategory = 'All';
+      }
+
+      if (monthExpenses.length === 0) {
+        searchWrapEl.classList.add('hidden');
+        filterBarEl.classList.add('hidden');
+        filterBarEl.innerHTML = '';
+      } else {
+        searchWrapEl.classList.remove('hidden');
+        filterBarEl.innerHTML = '';
+        availableCategories.forEach((cat) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const isActive = cat === selectedCategory;
+          btn.className = isActive
+            ? 'text-xs font-semibold px-3 py-1 rounded-full bg-slate-900 text-white cursor-pointer transition-colors'
+            : 'text-xs font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer transition-colors';
+          btn.textContent = cat;
+          btn.addEventListener('click', () => {
+            selectedCategory = cat;
+            render();
+          });
+          filterBarEl.appendChild(btn);
+        });
+        filterBarEl.classList.remove('hidden');
+      }
+
+      const q = searchQuery.trim().toLowerCase();
+      const filteredExpenses = monthExpenses.filter((item) => {
+        const matchesCat = selectedCategory === 'All' || item.category === selectedCategory;
+        const matchesQuery = !q || item.title.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
+        return matchesCat && matchesQuery;
+      });
+
+      const isFiltered = selectedCategory !== 'All' || q.length > 0;
+      itemCountEl.textContent = !isFiltered
+        ? (monthExpenses.length === 1 ? '1 item' : `${monthExpenses.length} items`)
+        : `${filteredExpenses.length} of ${monthExpenses.length}`;
+
+      // Expense list
+      if (filteredExpenses.length === 0) {
+        expenseList.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        if (monthExpenses.length === 0) {
+          clearControls.classList.add('hidden');
+          resetClearConfirm();
+        }
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      clearControls.classList.remove('hidden');
+      expenseList.innerHTML = '';
+
+      filteredExpenses.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = 'py-3 flex items-center justify-between gap-3';
+
+        const left = document.createElement('div');
+        left.className = 'min-w-0';
+
+        const title = document.createElement('p');
+        title.className = 'text-sm font-medium text-slate-900 truncate';
+        title.textContent = item.title;
+
+        const meta = document.createElement('div');
+        meta.className = 'flex items-center gap-2 mt-1';
+
+        const badge = document.createElement('span');
+        const badgeStyle = categoryColors[item.category] || categoryColors.Other;
+        badge.className = `inline-block text-[11px] font-medium px-2 py-0.5 rounded-full border ${badgeStyle}`;
+        badge.textContent = item.category;
+
+        const dateLabel = document.createElement('span');
+        dateLabel.className = 'text-xs text-slate-400';
+        dateLabel.textContent = `${formatShortDate(item.date)} · ${item.time}`;
+
+        meta.append(badge, dateLabel);
+        left.append(title, meta);
+
+        const right = document.createElement('div');
+        right.className = 'flex items-center gap-3 shrink-0';
+
+        const amount = document.createElement('span');
+        amount.className = 'text-sm font-semibold text-slate-900';
+        amount.textContent = formatRupees(item.amount);
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'text-xs font-medium text-slate-400 hover:text-emerald-600 px-2 py-1 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer';
+        editBtn.setAttribute('aria-label', `Edit ${item.title}`);
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', () => startEdit(item));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'text-xs font-medium text-slate-400 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer';
+        deleteBtn.setAttribute('aria-label', `Delete ${item.title}`);
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => {
+          if (editingId === item.id) cancelEdit();
+          expenses = expenses.filter((e) => e.id !== item.id);
+          saveExpenses(expenses);
+          resetClearConfirm();
+          render();
+        });
+
+        right.append(amount, editBtn, deleteBtn);
+        li.append(left, right);
+        expenseList.appendChild(li);
+      });
+    }
+
+    // 5. Month & Income handlers
+    monthPicker.value = selectedMonth;
+    syncDateInputToMonth();
+
+    function escapeCsv(value) {
+      const str = String(value ?? '');
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+
+    exportCsvBtn.addEventListener('click', () => {
+      const monthExpenses = expenses
+        .filter((item) => (item.date || '').startsWith(selectedMonth))
+        .sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.id - b.id);
+
+      if (monthExpenses.length === 0) return;
+
+      const income = Number(monthlyIncomes[selectedMonth]) || 0;
+      const totalSpent = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      const saved = income - totalSpent;
+
+      const rows = [
+        ['Date', 'Time', 'Item', 'Category', 'Amount (INR)'],
+        ...monthExpenses.map((item) => [
+          item.date,
+          item.time,
+          item.title,
+          item.category,
+          Number(item.amount).toFixed(2)
+        ]),
+        [],
+        ['Monthly Income', '', '', '', income.toFixed(2)],
+        ['Total Spent', '', '', '', totalSpent.toFixed(2)],
+        ['Money Saved', '', '', '', saved.toFixed(2)]
+      ];
+
+      const csvContent = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `expenses-${selectedMonth}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+
+    function isBillLoggedInMonth(bill, monthExpenses) {
+      return monthExpenses.some((item) =>
+        item.billId === bill.id ||
+        (item.title.toLowerCase() === bill.title.toLowerCase() &&
+          Number(item.amount) === Number(bill.amount) &&
+          item.category === 'Bills')
+      );
+    }
+
+    function logBillForMonth(bill) {
+      const today = getTodayISO();
+      const date = today.startsWith(selectedMonth) ? today : `${selectedMonth}-01`;
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      expenses.unshift({
+        id: nextId++,
+        billId: bill.id,
+        title: bill.title,
+        amount: Number(bill.amount),
+        category: 'Bills',
+        date,
+        time: now
+      });
+    }
+
+    function renderBills(monthExpenses) {
+      if (recurringBills.length === 0) {
+        billListEl.innerHTML = '';
+        billEmptyEl.classList.remove('hidden');
+        logAllBillsBtn.classList.add('hidden');
+        return;
+      }
+
+      billEmptyEl.classList.add('hidden');
+      billListEl.innerHTML = '';
+      let unloggedCount = 0;
+
+      recurringBills.forEach((bill) => {
+        const logged = isBillLoggedInMonth(bill, monthExpenses);
+        if (!logged) unloggedCount++;
+
+        const li = document.createElement('li');
+        li.className = 'py-2.5 flex items-center justify-between gap-3';
+
+        const left = document.createElement('div');
+        left.className = 'min-w-0';
+
+        const name = document.createElement('p');
+        name.className = 'text-sm font-medium text-slate-900 truncate';
+        name.textContent = bill.title;
+
+        const amt = document.createElement('p');
+        amt.className = 'text-xs text-slate-500';
+        amt.textContent = formatRupees(bill.amount);
+
+        left.append(name, amt);
+
+        const right = document.createElement('div');
+        right.className = 'flex items-center gap-2 shrink-0';
+
+        if (logged) {
+          const badge = document.createElement('span');
+          badge.className = 'text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg';
+          badge.textContent = 'Logged ✓';
+          right.appendChild(badge);
+        } else {
+          const logBtn = document.createElement('button');
+          logBtn.type = 'button';
+          logBtn.className = 'text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer';
+          logBtn.textContent = 'Log';
+          logBtn.addEventListener('click', () => {
+            logBillForMonth(bill);
+            saveExpenses(expenses);
+            render();
+          });
+          right.appendChild(logBtn);
+        }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'text-xs font-medium text-slate-400 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer';
+        removeBtn.setAttribute('aria-label', `Remove recurring bill ${bill.title}`);
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => {
+          recurringBills = recurringBills.filter((b) => b.id !== bill.id);
+          saveBills(recurringBills);
+          render();
+        });
+
+        right.appendChild(removeBtn);
+        li.append(left, right);
+        billListEl.appendChild(li);
+      });
+
+      if (unloggedCount > 0) {
+        logAllBillsBtn.classList.remove('hidden');
+      } else {
+        logAllBillsBtn.classList.add('hidden');
+      }
+    }
+
+    billForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const title = billTitleInput.value.trim();
+      const amount = parseFloat(billAmountInput.value);
+
+      if (!title) {
+        billError.textContent = 'Please enter a bill name.';
+        billError.classList.remove('hidden');
+        billTitleInput.focus();
+        return;
+      }
+
+      if (isNaN(amount) || amount <= 0) {
+        billError.textContent = 'Please enter an amount greater than 0.';
+        billError.classList.remove('hidden');
+        billAmountInput.focus();
+        return;
+      }
+
+      billError.classList.add('hidden');
+      recurringBills.push({ id: nextBillId++, title, amount });
+      saveBills(recurringBills);
+      billTitleInput.value = '';
+      billAmountInput.value = '';
+      billTitleInput.focus();
+      render();
+    });
+
+    logAllBillsBtn.addEventListener('click', () => {
+      const monthExpenses = expenses.filter((item) => (item.date || '').startsWith(selectedMonth));
+      let added = false;
+      recurringBills.forEach((bill) => {
+        if (!isBillLoggedInMonth(bill, monthExpenses)) {
+          logBillForMonth(bill);
+          added = true;
+        }
+      });
+      if (added) {
+        saveExpenses(expenses);
+        render();
+      }
+    });
+
+    searchInputEl.addEventListener('input', () => {
+      searchQuery = searchInputEl.value;
+      render();
+    });
+
+    monthPicker.addEventListener('change', () => {
+      if (!monthPicker.value) return;
+      selectedMonth = monthPicker.value;
+      selectedCategory = 'All';
+      syncDateInputToMonth();
+      resetClearConfirm();
+      render();
+    });
+
+    monthlyIncomeInput.addEventListener('input', () => {
+      const val = parseFloat(monthlyIncomeInput.value);
+      if (isNaN(val) || val <= 0) {
+        delete monthlyIncomes[selectedMonth];
+      } else {
+        monthlyIncomes[selectedMonth] = val;
+      }
+      saveIncomes(monthlyIncomes);
+      incomeSavedBadge.classList.remove('hidden');
+      render();
+    });
+
+    // 6. Clear All handlers
+    clearBtn.addEventListener('click', () => {
+      clearBtn.classList.add('hidden');
+      clearConfirmGroup.classList.remove('hidden');
+    });
+
+    cancelClearBtn.addEventListener('click', () => {
+      resetClearConfirm();
+    });
+
+    confirmClearBtn.addEventListener('click', () => {
+      expenses = expenses.filter((item) => !(item.date || '').startsWith(selectedMonth));
+      saveExpenses(expenses);
+      resetClearConfirm();
+      render();
+    });
+
+    // 7. Custom category toggle & Form submit handler
+    function toggleCustomCategory() {
+      if (categoryInput.value === 'Other') {
+        customCategoryWrap.classList.remove('hidden');
+      } else {
+        customCategoryWrap.classList.add('hidden');
+        customCategoryInput.value = '';
+      }
+    }
+
+    categoryInput.addEventListener('change', toggleCustomCategory);
+
+    function startEdit(item) {
+      editingId = item.id;
+      titleInput.value = item.title;
+      amountInput.value = item.amount;
+      dateInput.value = item.date || getTodayISO();
+
+      const presetOptions = ['Food', 'Transport', 'Groceries', 'Bills', 'Other'];
+      if (presetOptions.includes(item.category)) {
+        categoryInput.value = item.category;
+        customCategoryInput.value = '';
+      } else {
+        categoryInput.value = 'Other';
+        customCategoryInput.value = item.category;
+      }
+      toggleCustomCategory();
+
+      formHeading.textContent = 'Edit Expense';
+      submitBtn.textContent = 'Save Changes';
+      cancelEditBtn.classList.remove('hidden');
+      formError.classList.add('hidden');
+      titleInput.focus();
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      formHeading.textContent = 'Add Day-to-Day Expense';
+      submitBtn.textContent = 'Add Expense';
+      cancelEditBtn.classList.add('hidden');
+      titleInput.value = '';
+      amountInput.value = '';
+      categoryInput.value = 'Food';
+      customCategoryInput.value = '';
+      toggleCustomCategory();
+      syncDateInputToMonth();
+      formError.classList.add('hidden');
+    }
+
+    cancelEditBtn.addEventListener('click', cancelEdit);
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const title = titleInput.value.trim();
+      const amount = parseFloat(amountInput.value);
+      const customCategory = customCategoryInput.value.trim();
+      const category = categoryInput.value === 'Other' && customCategory ? customCategory : categoryInput.value;
+      const date = dateInput.value || getTodayISO();
+
+      if (!title) {
+        formError.textContent = 'Please enter what you spent on.';
+        formError.classList.remove('hidden');
+        titleInput.focus();
+        return;
+      }
+
+      if (isNaN(amount) || amount <= 0) {
+        formError.textContent = 'Please enter an amount greater than 0.';
+        formError.classList.remove('hidden');
+        amountInput.focus();
+        return;
+      }
+
+      formError.classList.add('hidden');
+
+      if (editingId !== null) {
+        expenses = expenses.map((item) =>
+          item.id === editingId
+            ? { ...item, title, amount, category, date }
+            : item
+        );
+        cancelEdit();
+      } else {
+        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        expenses.unshift({
+          id: nextId++,
+          title,
+          amount,
+          category,
+          date,
+          time: now
+        });
+        titleInput.value = '';
+        amountInput.value = '';
+        customCategoryInput.value = '';
+      }
+
+      saveExpenses(expenses);
+
+      // Switch view to the expense's month if the user picked a different month
+      const expenseMonth = date.slice(0, 7);
+      if (expenseMonth && expenseMonth !== selectedMonth) {
+        selectedMonth = expenseMonth;
+        monthPicker.value = selectedMonth;
+        selectedCategory = 'All';
+      }
+
+      resetClearConfirm();
+      titleInput.focus();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
